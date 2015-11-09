@@ -9,7 +9,7 @@ class PositionTest < ActiveSupport::TestCase
 
   def test_valid_position_record
     valid_rec = Position.new(valid_params)
-    assert_not valid_rec.valid? "Can't create with valid params: #{valid_rec.errors.messages}"
+    assert valid_rec.valid? "Can't create with valid params: #{valid_rec.errors.messages}"
   end
 
   def test_without_compulsory_field
