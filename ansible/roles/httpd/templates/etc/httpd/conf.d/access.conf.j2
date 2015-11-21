@@ -15,7 +15,7 @@
     </Directory>
     PassengerUserSwitching on
     PassengerUser {{application_user}}
-    
+
 </VirtualHost>
 
 
@@ -38,4 +38,16 @@
     SSLCertificateKeyFile /etc/pki/tls/private/localhost.key
     PassengerUserSwitching on
     PassengerUser {{application_user}}
+    <Location "/en/cert/test_browser_for_user_cert/">
+      SSLOptions +StdEnvVars +ExportCertData +OptRenegotiate +LegacyDNStringFormat
+      SSLVerifyClient optional
+      SSLVerifyDepth 5
+      RequestHeader add REDIRECT_SSL_CLIENT_S_DN %{SSL_CLIENT_S_DN}e
+    </Location>
+    <Location "/el/cert/test_browser_for_user_cert/">
+      SSLOptions +StdEnvVars +ExportCertData +OptRenegotiate +LegacyDNStringFormat
+      SSLVerifyClient optional
+      SSLVerifyDepth 5
+      RequestHeader add REDIRECT_SSL_CLIENT_S_DN %{SSL_CLIENT_S_DN}e
+    </Location>
 </VirtualHost>
