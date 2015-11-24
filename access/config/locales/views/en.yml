@@ -23,12 +23,18 @@ en:
         owner: Owner
         organization: Organization
         status: Status
+      organization:
+        name: Name
+        description: Description
+        domain: Domain
     error:
       csr_gen: An error has occurred. We couldn't generate your csr or it has been already generated
       error: An error has occurred
       already_csr: You may already have created a csr
       no_reg: Or you are not registered
       no_csr: You may not have created a csr
+    organizations:
+      other_locales: Other locales
     status: status
     Request_date: Request date
     Person_information: Person information
@@ -38,6 +44,7 @@ en:
     show: Show
     list_people: List People
     list_csr: List Certificate Requests
+    list_organizations: List Organizations
     edit: Edit
     destroy: Destroy
     accept: Accept
@@ -45,4 +52,28 @@ en:
     delete_confirmation: Are you sure?
     new_person: New Person
     new_csr: New Request
+    new_organization: New Organization
     back: Back
+    log_in: Log in
+    log_out: Log out
+    sign_up: Sign up
+    logged_in_as: Logged in as
+    or: or
+    homepage:
+      account_related: 'Account related'
+      host_related: 'Host related'
+      certificate_related: 'Certificate related'
+      org_related: 'Organization related'
+      create_account: 'Create new account'
+      account_details: 'View account details'
+      delete_account: 'Delete account'
+      account_changes: 'View account changes'
+      create_host: 'Create new host'
+      view_hosts: 'View hosts'
+      create_csr: 'Create new certificate request'
+      find_csr: 'Find CSR'
+      list_csrs: 'List CSRs'
+      create_org: 'Create organization'
+      list_orgs: 'List organizations'
+      login_or_signup: 'Please log in or create an account.'
+      orgs_admin_only: 'You must be logged in as admin to administer organizations.'
