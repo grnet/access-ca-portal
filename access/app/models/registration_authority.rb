@@ -6,11 +6,13 @@ class RegistrationAuthority < ActiveRecord::Base
 
   has_and_belongs_to_many :organizations,
                           join_table: 'ra_organization_relations',
-                          foreign_key: 'ra_id',
                           association_foreign_key: 'organization_id'
 
   belongs_to :organization
 
+
   validates :description, presence: true
+
+  translates :description
 
 end
