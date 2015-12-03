@@ -11,7 +11,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20151117231304) do
+ActiveRecord::Schema.define(version: 20151203103324) do
 
   create_table "alternative_emails", force: :cascade do |t|
     t.integer  "person_id",                          null: false
@@ -155,6 +155,38 @@ ActiveRecord::Schema.define(version: 20151117231304) do
     t.datetime "created_at",  null: false
     t.datetime "updated_at",  null: false
   end
+
+  create_table "ra_organization_relations", force: :cascade do |t|
+    t.integer  "registration_authority_id"
+    t.integer  "organization_id"
+    t.datetime "created_at",                null: false
+    t.datetime "updated_at",                null: false
+  end
+
+  create_table "ra_staff_memberships", force: :cascade do |t|
+    t.integer  "ra_id"
+    t.integer  "member_id"
+    t.integer  "role"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "registration_authorities", force: :cascade do |t|
+    t.text     "description"
+    t.datetime "created_at",  null: false
+    t.datetime "updated_at",  null: false
+  end
+
+  create_table "registration_authority_translations", force: :cascade do |t|
+    t.integer  "registration_authority_id", null: false
+    t.string   "locale",                    null: false
+    t.datetime "created_at",                null: false
+    t.datetime "updated_at",                null: false
+    t.text     "description"
+  end
+
+  add_index "registration_authority_translations", ["locale"], name: "index_registration_authority_translations_on_locale"
+  add_index "registration_authority_translations", ["registration_authority_id"], name: "index_d9376d4a70d85bc44aa0ffdc301497ea270fbcc0"
 
   create_table "scientific_field_translations", force: :cascade do |t|
     t.integer  "scientific_field_id", null: false
