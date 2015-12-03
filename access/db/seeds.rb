@@ -74,3 +74,16 @@ organizations_list.each do |rec|
   end
   org.save!
 end
+
+registration_authorities_list = [
+    { en: "Catch-all RA in GridAUTH", el: "Γενική (catch-all) Αρχή Πιστοποίησης  του GridAUTH"           }
+]
+
+registration_authorities_list.each do |rec|
+  ra = RegistrationAuthority.new
+  rec.each do |locale, val|
+    I18n.locale = locale
+    ra[:description] = val
+  end
+  ra.save!
+end
