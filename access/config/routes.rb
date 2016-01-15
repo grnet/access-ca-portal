@@ -1,34 +1,48 @@
-Rails.application.routes.draw do
-  root 'people#index', locale: :en
-  get '/:locale' => 'people#index', as: 'verify_email'
-  get '/:locale/:user_id/csr' => 'csr_gen#mozilla_csr'
-  post '/:locale/:user_id/submit' => 'csr_gen#csr_submission'
-  get '/:locale/error_csr_sub' => 'csr_gen#error_csr_sub'
-  get '/:locale/find_csr' => 'csr_gen#find_csr'
-  post '/:locale/find_csr' => 'csr_gen#csr_value'
-  get '/:locale/find_csr/no_csr' => 'csr_gen#error'
-  get '/:locale/ra/csr_list' => 'ra#csr_list'
-  get '/:locale/ra/csr_pending' => 'ra#csr_pending'
-  get '/:locale/ra/csr_approved' => 'ra#csr_approved'
-  get '/:locale/ra/csr_rejected' => 'ra#csr_rejected'
-  scope ":locale", locale: /#{APP_CONFIG['available_locales'].join('|')}/ do
-      resources :people do
-        get 'versions' => 'people_versions#index'
-      end
-      get '/people/confirm_email/:token' => 'people#verify_email'
+require 'sidekiq/web'
 
-      resources :organizations
-      resources :hosts do
-        get 'versions' => 'hosts_versions#index'
-      end
-      resources :certificate_requests, except: [:edit] do
-        post 'approve' => 'certificate_requests#approve_csr', as: 'approve'
-        post 'reject' => 'certificate_requests#reject_csr', as: 'reject'
-      end
-      get '/signup' => 'people#new'
-      get '/login' => 'sessions#new'
-      post '/login' => 'sessions#create'
-      get '/logout' => 'sessions#destroy'
+Rails.application.routes.draw do
+
+  scope "(:locale)", locale: /#{APP_CONFIG['available_locales'].join('|')}/ do
+    root 'site#index'
+    get '/:locale' => 'people#index'
+    resources :people do
+      get 'versions' => 'people_versions#index'
+    end
+    get '/people/confirm_email/:token' => 'people#verify_email', as: 'verify_email'
+
+    resources :organizations
+    resources :hosts do
+      get 'versions' => 'hosts_versions#index'
+    end
+    resources :certificate_requests, except: [:edit] do
+      post 'approve' => 'certificate_requests#approve_csr', as: 'approve'
+      post 'reject' => 'certificate_requests#reject_csr', as: 'reject'
+    end
+
+    # Browser generated csr routes
+    get '/:user_id/csr' => 'certificate_requests#mozilla_csr', as: 'mozilla_csr'
+    post '/:user_id/submit' => 'certificate_requests#csr_submission', as: 'csr_submission'
+    get '/error_csr_sub' => 'certificate_requests#error_csr_sub', as: 'csr_error'
+    get '/find_csr' => 'certificate_requests#find_csr', as: 'find_csr'
+    post '/find_csr' => 'certificate_requests#csr_value'
+    get '/find_csr/no_csr' => 'certificate_requests#error', as: 'no_csr'
+
+    get '/ra/csr_list' => 'ra#csr_list'
+    get '/ra/csr_pending' => 'ra#csr_pending'
+    get '/ra/csr_approved' => 'ra#csr_approved'
+    get '/ra/csr_rejected' => 'ra#csr_rejected'
+
+    get 'ca/list_approved' => 'ca#list_approved'
+    get 'ca/upload_certs' => 'ca#upload_certs_file'
+    post 'ca/upload_certs' => 'ca#upload_certs'
+
+    get '/signup' => 'people#new', as: 'signup'
+    get '/login' => 'sessions#new', as: 'login'
+    post '/login' => 'sessions#create'
+    get '/logout' => 'sessions#destroy', as: 'logout'
+
+    # Sidekiq Web UI
+    mount Sidekiq::Web => '/sidekiq'
   end
   # The priority is based upon order of creation: first created -> highest priority.
   # See how all your routes lay out with "rake routes".

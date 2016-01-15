@@ -1,3 +1,6 @@
+require 'open-uri'
+require 'helpers/type_helpers'
+
 class X509Helpers
 
   ############################ CSR related ############################
@@ -15,20 +18,44 @@ class X509Helpers
     return true
   end
 
-  def self.csr_creation(certificate_request, params)
+  def self.valid_spkac_csr?(body)
+    info, spkac = body.split(/SPKAC=/)
+    begin
+      if spkac
+        CertificateAuthority::SigningRequest.from_netscape_spkac(spkac)
+      else
+        return false
+      end
+    end
+    true
+  end
+
+  def self.csr_creation(certificate_request, params, session)
     begin
       csr = CertificateAuthority::SigningRequest.from_x509_csr(params['certificate_request']['body'])
       dn = DistinguishedName.find_by_subject_dn(csr.distinguished_name.x509_name.to_s)
-      if dn
-        certificate_request.owner_dn = dn
-      else
-        dn = DistinguishedName.new(owner_id: params[:owner_id],
-                                   subject_dn: csr.distinguished_name.x509_name.to_s,
-                                   owner_type: :person)
-        dn.save()
+      unless dn
+        type = nil
+        owner_id = nil
+        if TypeHelpers::isPerson?(csr.distinguished_name.x509_name.to_s)
+          type = 'Person'
+          owner_id = session[:user_id]
+        elsif TypeHelpers::isHost?(csr.distinguished_name.x509_name.to_s)
+          type = 'Host'
+          fqdn = (csr.distinguished_name.x509_name.to_s.match(/CN=(#{TypeHelpers::HOSTNAME_REGEX})/))[1]
+          host = Host.find_by_fqdn(fqdn)
+          if host
+            owner_id = host.id
+          else
+            owner_id = self.construct_host_from_subject_dn(csr.distinguished_name.x509_name.to_s, session[:user_id]).id
+          end
+        end
+        dn = DistinguishedName.new(owner_id: owner_id,
+                                   subject_dn: csr.distinguished_name.x509_name.to_s.split('/subjectAltName')[0],
+                                   owner_type: type)
+        dn.save!()
       end
       certificate_request.owner_dn = dn
-      certificate_request.requestor = Person.find(params[:owner_id])
       certificate_request.uuid = SecureRandom.hex(10)
       certificate_request.csr_type = 'classic'
       org = Organization.find_by_domain(csr.distinguished_name.organizational_unit)
@@ -43,30 +70,138 @@ class X509Helpers
     end
   end
 
+  def self.csr_spkac_creation(certificate_request, params)
+    begin
+    spkac = params[:SPKAC].gsub(/\n/, '').gsub(/\r/, '')
+    csr = CertificateAuthority::SigningRequest.from_netscape_spkac(spkac)
+    subject_dn = ['/C='+params[:countryName],'O='+params[:organizationName],
+                  'OU='+params[:organizationalUnitName],'CN='+params[:commonName]].join("/")
+    csr.distinguished_name = subject_dn
+    dn = DistinguishedName.find_by_subject_dn(subject_dn)
+    unless dn
+      dn = DistinguishedName.new(owner_id: params[:user_id],
+                                 subject_dn: subject_dn,
+                                 owner_type: 'Person')
+      dn.save!
+
+    end
+    certificate_request.owner_dn = dn
+    certificate_request.uuid = SecureRandom.hex(10)
+    certificate_request.csr_type = 'spkac'
+    certificate_request.body = subject_dn + "/SPKAC=#{spkac}"
+    org = Organization.find_by_domain(dn.subject_dn.split('/')[3].split('OU=')[1])
+    if org
+      certificate_request.organization = org
+    else
+      raise Exception()
+    end
+    certificate_request.status = 'pending'
+    rescue OpenSSL::X509::RequestError
+
+    end
+  end
+
+  # Certificate Reader is a class because it has to monitor CRLs as a field as well.
+
+  class CertificateReader
+    attr_reader :certificate_obj
+    def initialize(certificate_body, crl="")
+      if crl != ""
+        crl_body = crl
+      else
+        # The certificate_openssl var is used as an intermediary step for reading the whole
+        # info ouput saved in the XML record body.
+        certificate_openssl = OpenSSL::X509::Certificate.new(certificate_body)
+        @certificate_obj = CertificateAuthority::Certificate.from_x509_cert(certificate_openssl)
+        ca_hash = @certificate_obj.openssl_body.issuer.hash.to_s(base=16)
+        crl_file = Dir.tmpdir + "/" + ca_hash + ".crl"
+        check_crl = true
+        if File.exist?(crl_file) and (Time.now.to_i - open(crl_file).stat.ctime.to_i) < 10
+          crl_body = open(crl_file).read
+        else
+          crl_url = APP_CONFIG['CA']['crl_distribution_point'][ca_hash] || "#{Rails.root}/crl.pem"
+          tmp_crl = nil
+          begin
+            crl_body = open(crl_url).read
+            tmp_crl = File.open(crl_file, "w")
+            tmp_crl.print crl_body
+          rescue
+            check_crl = false
+          ensure
+            tmp_crl.close unless tmp_crl.nil?
+          end
+        end
+      end
+      # Check with CRL
+      if check_crl
+        crl = OpenSSL::X509::CRL.new(crl_body)
+        @serials = Array.new
+        crl.revoked.each do |rev|
+          @serials << rev.serial
+        end
+      end
+    end
+
+    def get_certificate_status
+      status = 'valid'
+      @now = Time::now.to_i
+      if @serials.include? @certificate_obj.openssl_body.serial
+        status = 'revoked'
+      elsif @certificate_obj.not_after.to_i < @now
+        status = 'expired'
+      end
+      status
+    end
+
+  end
+
+
   private
+
+    def self.construct_host_from_subject_dn(subject_dn, owner)
+      # Create host
+      hostnames = subject_dn.split(Regexp.union(/\/CN=/, /DNS\.\d+=/))[1..-1]
+      org = Organization.find_by_domain((subject_dn.match /.*OU=(.*)\/CN.*/)[1])
+      host = Host.create(fqdn: hostnames[0],
+                  person_id: owner,
+                  organization: org
+      )
+
+      # Create alternative hostnames
+      hostnames[1..-1].each do |hn|
+        AlternativeHostname.create(
+                               address: hn,
+                               host_id: host.id
+        )
+      end
+
+      host
+    end
+
   @@signing_profile = {
       "extensions" => {
           "basicConstraints" => {"ca" => false},
-          "crlDistributionPoints" => {"uri" => "#{APP_CONFIG['CA']['crl_distribution_point']}"},
+          "crlDistributionPoints" => {"uri" => "#{APP_CONFIG['CA']['signing']['crl_distribution_point']}"},
           "subjectKeyIdentifier" => {},
           "authorityKeyIdentifier" => {},
-          "authorityInfoAccess" => {"ocsp" => ["#{APP_CONFIG['CA']['ocsp_endpoint']}"]},
-          "keyUsage" => {"usage" => APP_CONFIG['CA']['key_usages']},
-          "extendedKeyUsage" => {"usage" => APP_CONFIG['CA']['extended_key_usages']},
+          "authorityInfoAccess" => {"ocsp" => ["#{APP_CONFIG['CA']['signing']['ocsp_endpoint']}"]},
+          "keyUsage" => {"usage" => APP_CONFIG['CA']['signing']['key_usages']},
+          "extendedKeyUsage" => {"usage" => APP_CONFIG['CA']['signing']['extended_key_usages']},
           "subjectAltName" => {"uris" => [""]},
           "certificatePolicies" => {
-              "policy_identifier" => "#{APP_CONFIG['CA']['policy_id']}", "cps_uris" => APP_CONFIG['CA']['cps_uris'],
+              "policy_identifier" => "#{APP_CONFIG['CA']['signing']['policy_id']}", "cps_uris" => APP_CONFIG['CA']['signing']['cps_uris'],
               "user_notice" => {
-                  "explicit_text" => "#{APP_CONFIG['CA']['user_notice']['explicit_text']}",
-                  "organization" => "#{APP_CONFIG['CA']['user_notice']['organization']}",
-                  "notice_numbers" => "#{APP_CONFIG['CA']['user_notice']['notice_numbers']}"
+                  "explicit_text" => "#{APP_CONFIG['CA']['signing']['user_notice']['explicit_text']}",
+                  "organization" => "#{APP_CONFIG['CA']['signing']['user_notice']['organization']}",
+                  "notice_numbers" => "#{APP_CONFIG['CA']['signing']['user_notice']['notice_numbers']}"
               }
           }
       }
   }
 
-  ######################## Certificate related ########################
-  #####################################################################
+  ######################## Certificate signing related ########################
+  #############################################################################
+
   def self.sign_csr(csr, ca_cert)
     cert_to_sign = CertificateAuthority::SigningRequest.from_x509_csr(csr).to_cert
     cert_to_sign = CertificateAuthority::Certificate.from_x509_cert(ca_cert)

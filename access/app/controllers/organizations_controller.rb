@@ -1,5 +1,6 @@
 class OrganizationsController < ApplicationController
   before_action :set_organization, only: [:show, :edit, :update, :destroy]
+  before_filter :authorize!
 
   # GET /organizations
   # GET /organizations.json
@@ -15,17 +16,21 @@ class OrganizationsController < ApplicationController
   # GET /organizations/new
   def new
     @organization = Organization.new
+    @locales = APP_CONFIG['available_locales'].map { |locale| locale.to_sym }
+    @locales -= [params[:locale].to_sym]
   end
 
   # GET /organizations/1/edit
   def edit
+    @locales = APP_CONFIG['available_locales'].map { |locale| locale.to_sym }
+    @locales -= [params[:locale].to_sym]
   end
 
   # POST /organizations
   # POST /organizations.json
   def create
     @organization = Organization.new(organization_params)
-
+    edit_other_locales_params
     respond_to do |format|
       if @organization.save
         format.html { redirect_to @organization, notice: 'Organization was successfully created.' }
@@ -37,9 +42,28 @@ class OrganizationsController < ApplicationController
     end
   end
 
+  def edit_other_locales_params
+    @locales = APP_CONFIG['available_locales'].map { |locale| locale.to_sym }
+    @locales -= [params[:locale].to_sym]
+    org_locales_params = {}
+    @locales.each do |locale|
+      org_locales_params[locale.to_sym] = {name: nil, description: nil}
+      org_locales_params[locale.to_sym][:name] = params["name_#{locale}"] if params["name_#{locale}"]
+      org_locales_params[locale.to_sym][:description] = params["description_#{locale}"] if params["description_#{locale}"]
+    end
+
+    org_locales_params.each do |locale, hash|
+      Globalize.with_locale(locale) do
+        @organization.name = hash[:name] if hash[:name]
+        @organization.description = hash[:description] if hash[:description]
+      end
+    end
+  end
+
   # PATCH/PUT /organizations/1
   # PATCH/PUT /organizations/1.json
   def update
+    edit_other_locales_params
     respond_to do |format|
       if @organization.update(organization_params)
         format.html { redirect_to @organization, notice: 'Organization was successfully updated.' }
@@ -70,5 +94,10 @@ class OrganizationsController < ApplicationController
     # Never trust parameters from the scary internet, only allow the white list through.
     def organization_params
       params.require(:organization).permit(:name, :domain, :description)
+    end
+
+    def authorize!
+      super
+      redirect_to root_url, alert: "#{I18n.t 'controllers.authorization.not_authorized'}" unless TmpAdmin.is_admin?(current_user)
     end
 end

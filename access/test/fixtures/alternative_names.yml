@@ -1,0 +1,13 @@
+# Read about fixtures at http://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+# This model initially had no columns defined.  If you add columns to the
+# model remove the '{}' from the fixture names and add the columns immediately
+# below each fixture, per the syntax in the comments below
+#
+alt_name_one:
+  alternative_ident: john_appleseed (Person)
+
+alt_name_two:
+  alternative_ident: foo_bar_host (Host)
+
+

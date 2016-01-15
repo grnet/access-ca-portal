@@ -10,32 +10,48 @@ default: &default
   email:
     default_from: no-reply@access.hellasgrid.gr
   snapshot_limit: 20
+  registration:
+    accept_only_institutional_mails: "true"
+    # The variable below is checked only if accept_only_institutional_mails == "true"
+    additional_orgs_for_mails:
+      - "cern.ch"
+      - "upnet.ch"
+    accept_csr_only_from_country: "GR"
   CA:
-    crl_distribution_point: http://crl.grid.auth.gr/hellasgrid-ca-2006/82b36fca.crl
-    ocsp_endpoint: ""
-    key_usages:
-      - digitalSignature
-      - nonRepudiation
-      - keyEncipherment
-      - dataEncipherment
-    extended_key_usages:
-      - clientAuth
-      - emailProtection
-    policy_id: "1.3.6.1.4.1.16515.20.1.1.2.3"
-    cps_uris:
-      - http://crl.grid.auth.gr/hellasgrid-ca-2006/cps/HellasGrid-CA-CP-CPS.pdf
-    user_notice:
-      explicit_text: ""
-      organization: ""
-      notice_numbers: ""
+    crl_distribution_point:
+      ede78092: "http://pki.physics.auth.gr/hellasgrid-ca/CRL/crl-v2.pem"
+      82b36fca: "http://crl.grid.auth.gr/hellasgrid-ca-2006/crl-v2.pem"
+      28a58577: "http://crl.grid.auth.gr/hellasgrid-root-ca-2006/crl-v2.pem"
+    signing:
+      crl_distribution_point: "http://crl.grid.auth.gr/hellasgrid-ca-2006/crl-v2.pem"
+      ocsp_endpoint: ""
+      key_usages:
+        - digitalSignature
+        - nonRepudiation
+        - keyEncipherment
+        - dataEncipherment
+      extended_key_usages:
+        - clientAuth
+        - emailProtection
+      policy_id: "1.3.6.1.4.1.16515.20.1.1.2.3"
+      cps_uris:
+        - http://crl.grid.auth.gr/hellasgrid-ca-2006/cps/HellasGrid-CA-CP-CPS.pdf
+      user_notice:
+        explicit_text: ""
+        organization: ""
+        notice_numbers: ""
 
-
-###### E-mail ######
 development:
   <<: *default
+  app_confs:
+    redis:
+      url: 'redis://localhost:6379'
 
 production:
   <<: *default
+  app_confs:
+    redis:
+      url: 'redis://localhost:6379'
 
 test:
   <<: *default
