@@ -1,0 +1,14 @@
+{% for env in [production, development, test] %}
+{{ env.name }}:
+  adapter: {{ env.db_type }}
+  database: {{ env.db_name }}
+{% if env.db_type == 'postgresql' %}
+  encoding: unicode
+  username: {{ db_username }}
+  password: {{ db_password }}
+{% elif env.db_type == 'sqlite3'%}
+  pool: 5
+  timeout: 5000
+{% endif %}
+
+{% endfor %}
